@@ -3,11 +3,11 @@
 #* Run: irm wt.ash1421.com | iex
 #*----------------------------------------------------
 
-$script:version = "V2.2.0"
+$script:version = "V3.1.0"
 $script:backup = "$env:TEMP\registry_backup.reg"
 $script:isAdmin = ([Security.Principal.WindowsPrincipal]::new(
-        [Security.Principal.WindowsIdentity]::GetCurrent()
-    )).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    [Security.Principal.WindowsIdentity]::GetCurrent()
+)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 #*###########################
 #! Output Helpers
@@ -22,6 +22,7 @@ function Write-Sep { Write-Host "  $([string][char]0x2500 * 37)" -ForegroundColo
 function Pause-Menu {
     Write-Host ""
     Read-Host "  Press Enter to continue" | Out-Null
+    Clear-Host
 }
 
 function Title {
@@ -35,13 +36,10 @@ function Title {
     Write-Host ""
 }
 
-# Returns $true if running as admin, else prints a warning and returns $false.
+# Guard used internally -- menus hide admin options when not elevated.
 function Assert-Admin {
     param([string]$name)
-    if (-not $script:isAdmin) {
-        Write-Warn "'$name' requires admin. Re-run via run.bat as Administrator."
-        return $false
-    }
+    if (-not $script:isAdmin) { return $false }
     return $true
 }
 
@@ -128,6 +126,23 @@ function Restart-Explorer {
     Start-Sleep -Milliseconds 600
     Start-Process explorer
     Write-Ok "Explorer restarted."
+}
+
+function Relaunch-AsAdmin {
+    if ($script:isAdmin) {
+        Write-Warn "Already running as Administrator."
+        return
+    }
+    Write-Info "Relaunching as Administrator..."
+    $exe = if (Get-Command pwsh -ErrorAction SilentlyContinue) { "pwsh" } else { "powershell" }
+    $ps  = $MyInvocation.ScriptName
+    if ($ps) {
+        Start-Process $exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ps`"" -Verb RunAs
+    } else {
+        # Launched via irm | iex -- re-fetch and run elevated
+        Start-Process $exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"irm wt.ash1421.com | iex`"" -Verb RunAs
+    }
+    exit
 }
 
 #*###########################
@@ -503,21 +518,17 @@ function Apply-AshsProfile {
     Disable-AdvertisingID
     Disable-AppSuggestions
     Disable-LockScreenAds
-    Disable-Telemetry          # admin -- skips with warning if not admin
-    Disable-Cortana            # admin -- skips with warning if not admin
-    Disable-ActivityHistory    # admin -- skips with warning if not admin
-    Disable-LocationTracking   # admin -- skips with warning if not admin
+    if ($script:isAdmin) {
+        Disable-Telemetry
+        Disable-Cortana
+        Disable-ActivityHistory
+        Disable-LocationTracking
+    }
 
     Write-Host ""
     Write-Sep
     Write-Host "  Profile applied." -ForegroundColor Green
-    if (-not $script:isAdmin) {
-        Write-Host ""
-        Write-Warn "Running without admin -- the following were skipped:"
-        Write-Warn "  Telemetry, Cortana, Activity History, Location Tracking"
-        Write-Warn "Re-run via run.bat as Administrator to apply those too."
-    }
-    Write-Host "  Restart Explorer (option 9) or reboot to apply all changes." -ForegroundColor DarkGray
+    Write-Host "  Restart Explorer (option 10) or reboot to apply all changes." -ForegroundColor DarkGray
     Write-Sep
 }
 
@@ -540,6 +551,9 @@ function MainMenu {
         Write-Host "  8   Backup Registry"
         Write-Host "  9   Restore Registry Backup"
         Write-Host "  10  Restart Explorer"
+        if (-not $script:isAdmin) {
+            Write-Host "  11  Relaunch as Administrator" -ForegroundColor Yellow
+        }
         Write-Sep
         Write-Host "  0   Exit"
         Write-Host ""
@@ -555,6 +569,7 @@ function MainMenu {
             "8" { Backup-Registry; Pause-Menu }
             "9" { Restore-Registry; Pause-Menu }
             "10" { Restart-Explorer; Pause-Menu }
+            "11" { Relaunch-AsAdmin }
             "0" { exit }
         }
     }
@@ -579,7 +594,7 @@ function Menu-Theme {
             "1" { Enable-DarkMode }           "2" { Enable-LightMode }
             "3" { Disable-Transparency }      "4" { Enable-Transparency }
             "5" { Disable-AccentOnTaskbar }   "6" { Enable-AccentOnTaskbar }
-            "0" { return }
+            "0" { Clear-Host; return }
         }
         if ($c -ne "0") { Pause-Menu }
     }
@@ -618,7 +633,7 @@ function Menu-Taskbar {
             "13" { StartMenu-MorePins }
             "14" { StartMenu-Default }
             "15" { Disable-StartRecommendations }
-            "0" { return }
+            "0" { Clear-Host; return }
         }
         if ($c -ne "0") { Pause-Menu }
     }
@@ -642,7 +657,7 @@ function Menu-Explorer {
             "3" { Show-HiddenFiles }       "4" { Hide-HiddenFiles }
             "5" { Show-FullPathTitleBar }  "6" { Hide-FullPathTitleBar }
             "7" { Show-SecondsInClock }    "8" { Hide-SecondsInClock }
-            "0" { return }
+            "0" { Clear-Host; return }
         }
         if ($c -ne "0") { Pause-Menu }
     }
@@ -666,7 +681,7 @@ function Menu-Background {
             "2" { Set-BackgroundSolidColor "1a1a1a" }
             "3" { Set-BackgroundSolidColor "1e1e2e" }
             "4" { Set-BackgroundCustomColor }
-            "0" { return }
+            "0" { Clear-Host; return }
         }
         if ($c -ne "0") { Pause-Menu }
     }
@@ -694,7 +709,7 @@ function Menu-Performance {
             "6" { Faster-Menu }                    "7" { Default-MenuSpeed }
             "8" { Set-BestPerformanceVisuals }     "9" { Set-BestAppearanceVisuals }
             "10" { Disable-GameDVR }                "11" { Enable-GameDVR }
-            "0" { return }
+            "0" { Clear-Host; return }
         }
         if ($c -ne "0") { Pause-Menu }
     }
@@ -704,19 +719,21 @@ function Menu-Privacy {
     while ($true) {
         Title
         Write-Host "  PRIVACY & SECURITY" -ForegroundColor Cyan
-        if (-not $script:isAdmin) {
-            Write-Warn "Not running as admin -- tweaks marked [Admin] will be skipped."
-            Write-Host ""
-        }
         Write-Sep
         Write-Host "  1  Disable Bing Search in Start    2  Enable Bing Search in Start"
         Write-Host "  3  Disable Advertising ID"
         Write-Host "  4  Disable App Suggestions & Tips"
         Write-Host "  5  Disable Lock Screen Ads"
-        Write-Host "  6  Disable Telemetry               [Admin]"
-        Write-Host "  7  Disable Activity History        [Admin]"
-        Write-Host "  8  Disable Location Tracking       [Admin]"
-        Write-Host "  9  Disable Cortana                 [Admin]"
+        if ($script:isAdmin) {
+            Write-Host "  6  Disable Telemetry"
+            Write-Host "  7  Disable Activity History"
+            Write-Host "  8  Disable Location Tracking"
+            Write-Host "  9  Disable Cortana"
+        } else {
+            Write-Host ""
+            Write-Host "  Options 6-9 require admin." -ForegroundColor DarkGray
+            Write-Host "  Use option 11 on the main menu to relaunch as Administrator." -ForegroundColor DarkGray
+        }
         Write-Sep
         Write-Host "  0  Back"
         Write-Host ""
@@ -726,11 +743,11 @@ function Menu-Privacy {
             "3" { Disable-AdvertisingID }
             "4" { Disable-AppSuggestions }
             "5" { Disable-LockScreenAds }
-            "6" { Disable-Telemetry }
-            "7" { Disable-ActivityHistory }
-            "8" { Disable-LocationTracking }
-            "9" { Disable-Cortana }
-            "0" { return }
+            "6" { if ($script:isAdmin) { Disable-Telemetry }        else { Write-Warn "Relaunch as admin to use this." } }
+            "7" { if ($script:isAdmin) { Disable-ActivityHistory }  else { Write-Warn "Relaunch as admin to use this." } }
+            "8" { if ($script:isAdmin) { Disable-LocationTracking } else { Write-Warn "Relaunch as admin to use this." } }
+            "9" { if ($script:isAdmin) { Disable-Cortana }          else { Write-Warn "Relaunch as admin to use this." } }
+            "0" { Clear-Host; return }
         }
         if ($c -ne "0") { Pause-Menu }
     }

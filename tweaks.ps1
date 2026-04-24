@@ -3,11 +3,11 @@
 #* Run: irm wt.ash1421.com | iex
 #*----------------------------------------------------
 
-$script:version = "V2.1.0"
+$script:version = "V2.2.0"
 $script:backup = "$env:TEMP\registry_backup.reg"
-$script:isAdmin = ([Security.Principal.WindowsPrincipal]
-    [Security.Principal.WindowsIdentity]::GetCurrent()
-).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$script:isAdmin = ([Security.Principal.WindowsPrincipal]::new(
+        [Security.Principal.WindowsIdentity]::GetCurrent()
+    )).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 #*###########################
 #! Output Helpers
@@ -61,7 +61,7 @@ function Safe-Set {
         Set-ItemProperty -Path $path -Name $name -Value $value -Type $type -ErrorAction Stop
     }
     catch {
-        Write-Fail "Could not set $name — $_"
+        Write-Fail "Could not set $name -- $_"
     }
 }
 
@@ -71,20 +71,31 @@ function Safe-Set {
 
 function Set-WallpaperNative {
     param([string]$path)
+
     try {
         if (-not ([System.Management.Automation.PSTypeName]"WallpaperHelper").Type) {
-            Add-Type -TypeDefinition @"
+
+            Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+
 public class WallpaperHelper {
-    [DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Auto)]
-    public static extern bool SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern bool SystemParametersInfo(
+        int uAction,
+        int uParam,
+        string lpvParam,
+        int fuWinIni
+    );
 }
-"@ -ErrorAction Stop
+'@
         }
+
+        [WallpaperHelper]::SystemParametersInfo(20, 0, $path, 3) | Out-Null
     }
-    catch {}
-    try { [WallpaperHelper]::SystemParametersInfo(20, 0, $path, 3) | Out-Null } catch {}
+    catch {
+        Write-Fail "Wallpaper API failed: $_"
+    }
 }
 
 #*###########################
@@ -292,13 +303,13 @@ function Set-BackgroundSolidBlack {
     Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Wallpapers"                BackgroundType 1
     Safe-Set "HKCU:\Control Panel\Desktop"                                                         Wallpaper     ""     String
     Set-WallpaperNative ""
-    Write-Ok "Background set to solid black (#000000)."
+    Write-Ok "Background set to solid black [#000000]."
 }
 
 function Set-BackgroundSolidColor {
     param([string]$hex = "1e1e2e")
     $hex = $hex.TrimStart("#")
-    if ($hex.Length -ne 6) { Write-Fail "Invalid hex — enter 6 characters e.g. 1a1a1a"; return }
+    if ($hex.Length -ne 6) { Write-Fail "Invalid hex -- enter 6 characters e.g. 1a1a1a"; return }
     $r = [convert]::ToInt32($hex.Substring(0, 2), 16)
     $g = [convert]::ToInt32($hex.Substring(2, 2), 16)
     $b = [convert]::ToInt32($hex.Substring(4, 2), 16)
@@ -306,7 +317,7 @@ function Set-BackgroundSolidColor {
     Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Wallpapers" BackgroundType 1
     Safe-Set "HKCU:\Control Panel\Desktop"                                          Wallpaper      ""        String
     Set-WallpaperNative ""
-    Write-Ok "Background set to #$hex (RGB $r $g $b)."
+    Write-Ok "Background set to [#$hex] RGB $r $g $b."
 }
 
 function Set-BackgroundCustomColor {
@@ -492,17 +503,17 @@ function Apply-AshsProfile {
     Disable-AdvertisingID
     Disable-AppSuggestions
     Disable-LockScreenAds
-    Disable-Telemetry          # admin — skips with warning if not admin
-    Disable-Cortana            # admin — skips with warning if not admin
-    Disable-ActivityHistory    # admin — skips with warning if not admin
-    Disable-LocationTracking   # admin — skips with warning if not admin
+    Disable-Telemetry          # admin -- skips with warning if not admin
+    Disable-Cortana            # admin -- skips with warning if not admin
+    Disable-ActivityHistory    # admin -- skips with warning if not admin
+    Disable-LocationTracking   # admin -- skips with warning if not admin
 
     Write-Host ""
     Write-Sep
     Write-Host "  Profile applied." -ForegroundColor Green
     if (-not $script:isAdmin) {
         Write-Host ""
-        Write-Warn "Running without admin — the following were skipped:"
+        Write-Warn "Running without admin -- the following were skipped:"
         Write-Warn "  Telemetry, Cortana, Activity History, Location Tracking"
         Write-Warn "Re-run via run.bat as Administrator to apply those too."
     }
@@ -642,9 +653,9 @@ function Menu-Background {
         Title
         Write-Host "  DESKTOP BACKGROUND" -ForegroundColor Cyan
         Write-Sep
-        Write-Host "  1  Solid Black   (#000000)"
-        Write-Host "  2  Dark Grey     (#1a1a1a)"
-        Write-Host "  3  Dark Purple   (#1e1e2e)"
+        Write-Host "  1  Solid Black   [#000000]"
+        Write-Host "  2  Dark Grey     [#1a1a1a]"
+        Write-Host "  3  Dark Purple   [#1e1e2e]"
         Write-Host "  4  Custom Hex Color..."
         Write-Sep
         Write-Host "  0  Back"
@@ -670,7 +681,7 @@ function Menu-Performance {
         Write-Host "  3  Show Window Content (Dragging)  4  Hide Window Content (Dragging)"
         Write-Host "  5  Disable Startup Delay"
         Write-Host "  6  Faster Menus (20ms)             7  Default Menu Speed (400ms)"
-        Write-Host "  8  Visuals — Best Performance      9  Visuals — Best Appearance"
+        Write-Host "  8  Visuals -- Best Performance      9  Visuals -- Best Appearance"
         Write-Host "  10 Disable Game DVR               11  Enable Game DVR"
         Write-Sep
         Write-Host "  0  Back"
@@ -694,7 +705,7 @@ function Menu-Privacy {
         Title
         Write-Host "  PRIVACY & SECURITY" -ForegroundColor Cyan
         if (-not $script:isAdmin) {
-            Write-Warn "Not running as admin — tweaks marked [Admin] will be skipped."
+            Write-Warn "Not running as admin -- tweaks marked [Admin] will be skipped."
             Write-Host ""
         }
         Write-Sep

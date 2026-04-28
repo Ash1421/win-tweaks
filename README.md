@@ -46,7 +46,23 @@ irm wt.ash1421.com | iex
 powershell -c "irm wt.ash1421.com | iex"
 ```
 
-### 📁 Download & Run locally
+### 💾 Download to Temp & Run
+
+Saves a local copy to `%TEMP%\tweaks.ps1` before running — useful if you want to relaunch as admin without re-downloading, or just keep a copy.
+
+```powershell
+irm wt.ash1421.com -OutFile "$env:TEMP\tweaks.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\tweaks.ps1"
+```
+
+### ⚙️ Raw Download to Temp & Run
+
+Using raw links, Saves a local copy to `%TEMP%\tweaks.ps1` before running — useful if you want to relaunch as admin without re-downloading, or just keep a copy.
+
+```powershell
+irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks.ps1 -OutFile "$env:TEMP\tweaks.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\tweaks.ps1"
+```
+
+### 📁 Download & Run Locally
 
 1. Download or clone the repo
 2. Double-click `run.bat`
@@ -59,9 +75,9 @@ powershell -c "irm wt.ash1421.com | iex"
 powershell -ExecutionPolicy Bypass -File tweaks.ps1
 ```
 
-> **Note:** The script works without admin. Tweaks that need `HKLM` access (Telemetry, Cortana, Activity History, Location Tracking) are clearly marked `[Admin]` in the menu and will be skipped gracefully if not elevated, rather than erroring out.
-
 ---
+
+> **Note:** The script works without admin. Tweaks that need `HKLM` access (Telemetry, Cortana, Activity History, Location Tracking, Windows Security icon) are clearly marked `[Admin]` in the menu and will be skipped gracefully if not elevated, rather than erroring out. Use option **13** on the main menu to relaunch as Administrator at any time.
 
 ## 🖥️ How It Works
 

@@ -1,13 +1,17 @@
 #*----------------------------------------------------
 #! Ash's Windows Tweaks Manager
-#* Run: irm wt.ash1421.com | iex
+#* Run:            irm wt.ash1421.com | iex
+#* Download & Run: irm wt.ash1421.com -OutFile "$env:TEMP\tweaks.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\tweaks.ps1"
+#* Raw Download & Run: irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks.ps1 -OutFile "$env:TEMP\tweaks.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\tweaks.ps1"
 #*----------------------------------------------------
 
-$script:version = "V3.1.0"
+$script:version = "V3.3.0"
 $script:backup = "$env:TEMP\registry_backup.reg"
+$script:tempScript = "$env:TEMP\tweaks.ps1"
+$script:sourceUrl = "https://wt.ash1421.com"
 $script:isAdmin = ([Security.Principal.WindowsPrincipal]::new(
-    [Security.Principal.WindowsIdentity]::GetCurrent()
-)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        [Security.Principal.WindowsIdentity]::GetCurrent()
+    )).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 #*###########################
 #! Output Helpers
@@ -36,7 +40,6 @@ function Title {
     Write-Host ""
 }
 
-# Guard used internally -- menus hide admin options when not elevated.
 function Assert-Admin {
     param([string]$name)
     if (-not $script:isAdmin) { return $false }
@@ -58,9 +61,7 @@ function Safe-Set {
         if (-not (Test-Path $path)) { New-Item $path -Force | Out-Null }
         Set-ItemProperty -Path $path -Name $name -Value $value -Type $type -ErrorAction Stop
     }
-    catch {
-        Write-Fail "Could not set $name -- $_"
-    }
+    catch { Write-Fail "Could not set $name -- $_" }
 }
 
 #*###########################
@@ -69,31 +70,22 @@ function Safe-Set {
 
 function Set-WallpaperNative {
     param([string]$path)
-
     try {
         if (-not ([System.Management.Automation.PSTypeName]"WallpaperHelper").Type) {
-
             Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
-
 public class WallpaperHelper {
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     public static extern bool SystemParametersInfo(
-        int uAction,
-        int uParam,
-        string lpvParam,
-        int fuWinIni
+        int uAction, int uParam, string lpvParam, int fuWinIni
     );
 }
 '@
         }
-
         [WallpaperHelper]::SystemParametersInfo(20, 0, $path, 3) | Out-Null
     }
-    catch {
-        Write-Fail "Wallpaper API failed: $_"
-    }
+    catch { Write-Fail "Wallpaper API failed: $_" }
 }
 
 #*###########################
@@ -104,7 +96,7 @@ function Backup-Registry {
     Write-Info "Backing up HKCU to $($script:backup)..."
     try {
         reg export HKCU $script:backup /y 2>&1 | Out-Null
-        Write-Ok "Backup saved."
+        Write-Ok "Registry backup saved to $($script:backup)"
     }
     catch { Write-Fail "Backup failed: $_" }
 }
@@ -115,9 +107,7 @@ function Restore-Registry {
         try { reg import $script:backup 2>&1 | Out-Null; Write-Ok "Registry restored." }
         catch { Write-Fail "Restore failed: $_" }
     }
-    else {
-        Write-Fail "No backup found at $($script:backup)"
-    }
+    else { Write-Fail "No backup found at $($script:backup)" }
 }
 
 function Restart-Explorer {
@@ -128,19 +118,31 @@ function Restart-Explorer {
     Write-Ok "Explorer restarted."
 }
 
-function Relaunch-AsAdmin {
-    if ($script:isAdmin) {
-        Write-Warn "Already running as Administrator."
-        return
+function Save-ScriptToTemp {
+    Write-Info "Saving script to $($script:tempScript)..."
+    try {
+        Invoke-RestMethod $script:sourceUrl -OutFile $script:tempScript -ErrorAction Stop
+        Write-Ok "Script saved to $($script:tempScript)"
     }
+    catch { Write-Fail "Could not save script: $_" }
+}
+
+function Relaunch-AsAdmin {
+    if ($script:isAdmin) { Write-Warn "Already running as Administrator."; return }
     Write-Info "Relaunching as Administrator..."
     $exe = if (Get-Command pwsh -ErrorAction SilentlyContinue) { "pwsh" } else { "powershell" }
-    $ps  = $MyInvocation.ScriptName
+    $ps = $MyInvocation.ScriptName
+
     if ($ps) {
         Start-Process $exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ps`"" -Verb RunAs
-    } else {
-        # Launched via irm | iex -- re-fetch and run elevated
-        Start-Process $exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"irm wt.ash1421.com | iex`"" -Verb RunAs
+    }
+    elseif (Test-Path $script:tempScript) {
+        # Already saved to temp -- relaunch from there, no re-download needed
+        Start-Process $exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$($script:tempScript)`"" -Verb RunAs
+    }
+    else {
+        # Last resort: re-fetch elevated
+        Start-Process $exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"irm $($script:sourceUrl) | iex`"" -Verb RunAs
     }
     exit
 }
@@ -195,55 +197,20 @@ function Taskbar-Center {
     Write-Ok "Taskbar aligned center."
 }
 
-function Disable-TaskbarWidgets {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" TaskbarDa 0
-    Write-Ok "Taskbar Widgets button hidden."
-}
+function Disable-TaskbarWidgets { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" TaskbarDa 0; Write-Ok "Taskbar Widgets hidden." }
+function Enable-TaskbarWidgets { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" TaskbarDa 1; Write-Ok "Taskbar Widgets shown." }
 
-function Enable-TaskbarWidgets {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" TaskbarDa 1
-    Write-Ok "Taskbar Widgets button shown."
-}
+function Disable-TaskbarSearch { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" SearchboxTaskbarMode 0; Write-Ok "Taskbar Search hidden." }
+function Enable-TaskbarSearch { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" SearchboxTaskbarMode 1; Write-Ok "Taskbar Search shown." }
 
-function Disable-TaskbarSearch {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" SearchboxTaskbarMode 0
-    Write-Ok "Taskbar Search hidden."
-}
+function Disable-TaskView { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" ShowTaskViewButton 0; Write-Ok "Task View button hidden." }
+function Enable-TaskView { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" ShowTaskViewButton 1; Write-Ok "Task View button shown." }
 
-function Enable-TaskbarSearch {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search" SearchboxTaskbarMode 1
-    Write-Ok "Taskbar Search shown."
-}
+function Disable-CopilotButton { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" ShowCopilotButton 0; Write-Ok "Copilot button hidden." }
+function Enable-CopilotButton { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" ShowCopilotButton 1; Write-Ok "Copilot button shown." }
 
-function Disable-TaskView {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" ShowTaskViewButton 0
-    Write-Ok "Task View button hidden."
-}
-
-function Enable-TaskView {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" ShowTaskViewButton 1
-    Write-Ok "Task View button shown."
-}
-
-function Disable-CopilotButton {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" ShowCopilotButton 0
-    Write-Ok "Copilot button hidden."
-}
-
-function Enable-CopilotButton {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" ShowCopilotButton 1
-    Write-Ok "Copilot button shown."
-}
-
-function Disable-ChatButton {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" TaskbarMn 0
-    Write-Ok "Chat / Teams button hidden."
-}
-
-function Enable-ChatButton {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" TaskbarMn 1
-    Write-Ok "Chat / Teams button shown."
-}
+function Disable-ChatButton { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" TaskbarMn 0; Write-Ok "Chat / Teams button hidden." }
+function Enable-ChatButton { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" TaskbarMn 1; Write-Ok "Chat / Teams button shown." }
 
 #*###########################
 #! Start Menu
@@ -269,44 +236,102 @@ function Disable-StartRecommendations {
 #! File Explorer
 #*###########################
 
-function Show-FileExtensions {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" HideFileExt 0
-    Write-Ok "File extensions shown."
+function Show-FileExtensions { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" HideFileExt 0; Write-Ok "File extensions shown." }
+function Hide-FileExtensions { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" HideFileExt 1; Write-Ok "File extensions hidden." }
+
+function Show-HiddenFiles { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" Hidden 1; Write-Ok "Hidden files visible." }
+function Hide-HiddenFiles { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" Hidden 2; Write-Ok "Hidden files hidden." }
+
+function Show-FullPathTitleBar { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CabinetState" FullPath 1; Write-Ok "Full path shown in title bar." }
+function Hide-FullPathTitleBar { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CabinetState" FullPath 0; Write-Ok "Full path hidden." }
+
+function Show-SecondsInClock { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" ShowSecondsInSystemClock 1; Write-Ok "Seconds shown in clock." }
+function Hide-SecondsInClock { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" ShowSecondsInSystemClock 0; Write-Ok "Seconds hidden from clock." }
+
+#*###########################
+#! System Tray
+#*###########################
+
+# --- Input Indicator (language / keyboard selector) ---
+# ShowStatus: 3 = hidden  |  4 = docked in taskbar (default)
+function Hide-InputIndicator {
+    Safe-Set "HKCU:\Software\Microsoft\CTF\LangBar" ShowStatus 3
+    Write-Ok "Input indicator (language selector) hidden."
+}
+function Show-InputIndicator {
+    Safe-Set "HKCU:\Software\Microsoft\CTF\LangBar" ShowStatus 4
+    Write-Ok "Input indicator shown."
 }
 
-function Hide-FileExtensions {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" HideFileExt 1
-    Write-Ok "File extensions hidden."
+# --- Action Center / Notification bell ---
+function Hide-ActionCenter {
+    Safe-Set "HKCU:\Software\Policies\Microsoft\Windows\Explorer" DisableNotificationCenter 1
+    Write-Ok "Action Center (notification bell) hidden."
+}
+function Show-ActionCenter {
+    Safe-Set "HKCU:\Software\Policies\Microsoft\Windows\Explorer" DisableNotificationCenter 0
+    Write-Ok "Action Center shown."
 }
 
-function Show-HiddenFiles {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" Hidden 1
-    Write-Ok "Hidden files visible."
+# --- Hidden icons overflow arrow ( ^ chevron ) ---
+# EnableAutoTray 1 = auto-hide inactive icons behind the ^ arrow  (default)
+# EnableAutoTray 0 = all tray icons always visible, arrow disappears
+function Hide-TrayOverflowArrow {
+    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer" EnableAutoTray 0
+    Write-Ok "Hidden icons overflow arrow removed."
+    Write-Warn "All tray icons are now shown flat. Use per-app toggle in"
+    Write-Warn "Settings > Personalisation > Taskbar > Other system tray icons"
+    Write-Warn "to hide individual apps from the tray entirely."
+}
+function Show-TrayOverflowArrow {
+    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer" EnableAutoTray 1
+    Write-Ok "Hidden icons overflow arrow restored."
 }
 
-function Hide-HiddenFiles {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" Hidden 2
-    Write-Ok "Hidden files hidden."
+# --- Meet Now (Windows 10) ---
+function Hide-MeetNow {
+    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" HideSCAMeetNow 1
+    Write-Ok "Meet Now button hidden."
+}
+function Show-MeetNow {
+    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" HideSCAMeetNow 0
+    Write-Ok "Meet Now button shown."
 }
 
-function Show-FullPathTitleBar {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CabinetState" FullPath 1
-    Write-Ok "Full path shown in title bar."
+# --- Windows Security tray icon  [Admin] ---
+function Hide-SecurityTrayIcon {
+    if (-not (Assert-Admin "Hide Security Tray Icon")) { Write-Warn "Admin required."; return }
+    Safe-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Systray" HideSystray 1
+    Write-Ok "Windows Security tray icon hidden."
+}
+function Show-SecurityTrayIcon {
+    if (-not (Assert-Admin "Show Security Tray Icon")) { Write-Warn "Admin required."; return }
+    Safe-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Systray" HideSystray 0
+    Write-Ok "Windows Security tray icon shown."
 }
 
-function Hide-FullPathTitleBar {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\CabinetState" FullPath 0
-    Write-Ok "Full path hidden."
+# --- Clean Tray preset: clock + date only ---
+function Apply-CleanTray {
+    Write-Info "Applying clean tray (clock and date only)..."
+    Hide-InputIndicator
+    Hide-ActionCenter
+    Hide-MeetNow
+    Hide-TrayOverflowArrow
+    Disable-CopilotButton
+    Disable-ChatButton
+    Write-Host ""
+    Write-Ok "Tray cleaned -- clock and date remain."
+    Write-Warn "Volume / Network / Battery are system-managed icons."
+    Write-Warn "To hide them: Settings > Personalisation > Taskbar"
+    Write-Warn "             > Other system tray icons"
 }
 
-function Show-SecondsInClock {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" ShowSecondsInSystemClock 1
-    Write-Ok "Seconds shown in clock."
-}
-
-function Hide-SecondsInClock {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" ShowSecondsInSystemClock 0
-    Write-Ok "Seconds hidden from clock."
+function Restore-TrayDefaults {
+    Show-InputIndicator
+    Show-ActionCenter
+    Show-MeetNow
+    Show-TrayOverflowArrow
+    Write-Ok "Tray restored to defaults."
 }
 
 #*###########################
@@ -346,40 +371,16 @@ function Set-BackgroundCustomColor {
 #! Performance
 #*###########################
 
-function Disable-Animations {
-    Safe-Set "HKCU:\Control Panel\Desktop\WindowMetrics" MinAnimate 0
-    Write-Ok "Animations disabled."
-}
+function Disable-Animations { Safe-Set "HKCU:\Control Panel\Desktop\WindowMetrics" MinAnimate 0; Write-Ok "Animations disabled." }
+function Enable-Animations { Safe-Set "HKCU:\Control Panel\Desktop\WindowMetrics" MinAnimate 1; Write-Ok "Animations enabled." }
 
-function Enable-Animations {
-    Safe-Set "HKCU:\Control Panel\Desktop\WindowMetrics" MinAnimate 1
-    Write-Ok "Animations enabled."
-}
+function Enable-WindowDraggingContent { Safe-Set "HKCU:\Control Panel\Desktop" DragFullWindows 1; Write-Ok "Window contents shown while dragging." }
+function Disable-WindowDraggingContent { Safe-Set "HKCU:\Control Panel\Desktop" DragFullWindows 0; Write-Ok "Window contents hidden while dragging." }
 
-function Enable-WindowDraggingContent {
-    Safe-Set "HKCU:\Control Panel\Desktop" DragFullWindows 1
-    Write-Ok "Window contents shown while dragging."
-}
+function Disable-StartupDelay { Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize" StartupDelayInMSec 0; Write-Ok "Explorer startup delay removed." }
 
-function Disable-WindowDraggingContent {
-    Safe-Set "HKCU:\Control Panel\Desktop" DragFullWindows 0
-    Write-Ok "Window contents hidden while dragging."
-}
-
-function Disable-StartupDelay {
-    Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize" StartupDelayInMSec 0
-    Write-Ok "Explorer startup delay removed."
-}
-
-function Faster-Menu {
-    Safe-Set "HKCU:\Control Panel\Desktop" MenuShowDelay 20 String
-    Write-Ok "Menu delay set to 20ms."
-}
-
-function Default-MenuSpeed {
-    Safe-Set "HKCU:\Control Panel\Desktop" MenuShowDelay 400 String
-    Write-Ok "Menu delay restored to 400ms."
-}
+function Faster-Menu { Safe-Set "HKCU:\Control Panel\Desktop" MenuShowDelay 20  String; Write-Ok "Menu delay set to 20ms." }
+function Default-MenuSpeed { Safe-Set "HKCU:\Control Panel\Desktop" MenuShowDelay 400 String; Write-Ok "Menu delay restored to 400ms." }
 
 function Set-BestPerformanceVisuals {
     Safe-Set "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" VisualFXSetting 2
@@ -393,9 +394,7 @@ function Set-BestAppearanceVisuals {
 
 function Disable-GameDVR {
     Safe-Set "HKCU:\System\GameConfigStore" GameDVR_Enabled 0
-    if ($script:isAdmin) {
-        Safe-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" AllowGameDVR 0
-    }
+    if ($script:isAdmin) { Safe-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" AllowGameDVR 0 }
     Write-Ok "Game DVR disabled."
 }
 
@@ -442,7 +441,7 @@ function Disable-LockScreenAds {
 
 function Disable-Telemetry {
     if (-not (Assert-Admin "Disable Telemetry")) { return }
-    Safe-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" AllowTelemetry           0
+    Safe-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" AllowTelemetry               0
     Safe-Set "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" LimitDiagnosticLogCollection 1
     Write-Ok "Telemetry disabled."
 }
@@ -496,12 +495,23 @@ function Apply-AshsProfile {
     StartMenu-MorePins
     Disable-StartRecommendations
 
+    Write-Info "System Tray..."
+    Hide-InputIndicator
+    Hide-ActionCenter
+    Hide-MeetNow
+    # Hide-TrayOverflowArrow
+    Disable-CopilotButton
+    Disable-ChatButton
+    if ($script:isAdmin) {
+        Hide-SecurityTrayIcon
+    }
+
     Write-Info "Background..."
     Set-BackgroundSolidBlack
 
     Write-Info "File Explorer..."
     Show-FileExtensions
-    Show-HiddenFiles
+    # Show-HiddenFiles
     Show-FullPathTitleBar
     Show-SecondsInClock
 
@@ -510,7 +520,7 @@ function Apply-AshsProfile {
     Enable-WindowDraggingContent
     Disable-StartupDelay
     Faster-Menu
-    Set-BestPerformanceVisuals
+    # Set-BestPerformanceVisuals
     Disable-GameDVR
 
     Write-Info "Privacy..."
@@ -528,7 +538,7 @@ function Apply-AshsProfile {
     Write-Host ""
     Write-Sep
     Write-Host "  Profile applied." -ForegroundColor Green
-    Write-Host "  Restart Explorer (option 10) or reboot to apply all changes." -ForegroundColor DarkGray
+    Write-Host "  Restart Explorer (option 11) or reboot to apply all changes." -ForegroundColor DarkGray
     Write-Sep
 }
 
@@ -543,16 +553,19 @@ function MainMenu {
         Write-Sep
         Write-Host "  2   Theme & Appearance"
         Write-Host "  3   Taskbar & Start Menu"
-        Write-Host "  4   File Explorer"
-        Write-Host "  5   Desktop Background"
-        Write-Host "  6   Performance"
-        Write-Host "  7   Privacy & Security"
+        Write-Host "  4   System Tray"
+        Write-Host "  5   File Explorer"
+        Write-Host "  6   Desktop Background"
+        Write-Host "  7   Performance"
+        Write-Host "  8   Privacy & Security"
         Write-Sep
-        Write-Host "  8   Backup Registry"
-        Write-Host "  9   Restore Registry Backup"
-        Write-Host "  10  Restart Explorer"
+        Write-Host "  9   Backup Registry"
+        Write-Host "  10  Restore Registry Backup"
+        Write-Host "  11  Restart Explorer"
+        Write-Host "  12  Save Script to Temp" -NoNewline
+        Write-Host "  ($($script:tempScript))" -ForegroundColor DarkGray
         if (-not $script:isAdmin) {
-            Write-Host "  11  Relaunch as Administrator" -ForegroundColor Yellow
+            Write-Host "  13  Relaunch as Administrator" -ForegroundColor Yellow
         }
         Write-Sep
         Write-Host "  0   Exit"
@@ -562,14 +575,16 @@ function MainMenu {
             "1" { Apply-AshsProfile; Pause-Menu }
             "2" { Menu-Theme }
             "3" { Menu-Taskbar }
-            "4" { Menu-Explorer }
-            "5" { Menu-Background }
-            "6" { Menu-Performance }
-            "7" { Menu-Privacy }
-            "8" { Backup-Registry; Pause-Menu }
-            "9" { Restore-Registry; Pause-Menu }
-            "10" { Restart-Explorer; Pause-Menu }
-            "11" { Relaunch-AsAdmin }
+            "4" { Menu-SystemTray }
+            "5" { Menu-Explorer }
+            "6" { Menu-Background }
+            "7" { Menu-Performance }
+            "8" { Menu-Privacy }
+            "9" { Backup-Registry; Pause-Menu }
+            "10" { Restore-Registry; Pause-Menu }
+            "11" { Restart-Explorer; Pause-Menu }
+            "12" { Save-ScriptToTemp; Pause-Menu }
+            "13" { Relaunch-AsAdmin }
             "0" { exit }
         }
     }
@@ -580,20 +595,17 @@ function Menu-Theme {
         Title
         Write-Host "  THEME & APPEARANCE" -ForegroundColor Cyan
         Write-Sep
-        Write-Host "  1  Enable Dark Mode"
-        Write-Host "  2  Enable Light Mode"
-        Write-Host "  3  Disable Transparency Effects"
-        Write-Host "  4  Enable Transparency Effects"
-        Write-Host "  5  Disable Accent Color on Taskbar"
-        Write-Host "  6  Enable Accent Color on Taskbar"
+        Write-Host "  1  Enable Dark Mode             2  Enable Light Mode"
+        Write-Host "  3  Disable Transparency         4  Enable Transparency"
+        Write-Host "  5  Disable Accent on Taskbar    6  Enable Accent on Taskbar"
         Write-Sep
         Write-Host "  0  Back"
         Write-Host ""
         $c = Read-Host "  Select"
         switch ($c) {
-            "1" { Enable-DarkMode }           "2" { Enable-LightMode }
-            "3" { Disable-Transparency }      "4" { Enable-Transparency }
-            "5" { Disable-AccentOnTaskbar }   "6" { Enable-AccentOnTaskbar }
+            "1" { Enable-DarkMode }          "2" { Enable-LightMode }
+            "3" { Disable-Transparency }     "4" { Enable-Transparency }
+            "5" { Disable-AccentOnTaskbar }  "6" { Enable-AccentOnTaskbar }
             "0" { Clear-Host; return }
         }
         if ($c -ne "0") { Pause-Menu }
@@ -606,7 +618,7 @@ function Menu-Taskbar {
         Write-Host "  TASKBAR & START MENU" -ForegroundColor Cyan
         Write-Sep
         Write-Host "  [ Alignment ]"
-        Write-Host "  1  Left          2  Center"
+        Write-Host "  1  Left              2  Center"
         Write-Host ""
         Write-Host "  [ Taskbar Buttons ]"
         Write-Host "  3  Hide Widgets            4  Show Widgets"
@@ -616,7 +628,7 @@ function Menu-Taskbar {
         Write-Host "  11 Hide Chat/Teams        12  Show Chat/Teams"
         Write-Host ""
         Write-Host "  [ Start Menu ]"
-        Write-Host "  13 More Pins layout (fewer recommendations)"
+        Write-Host "  13 More Pins layout"
         Write-Host "  14 Default layout"
         Write-Host "  15 Disable recommendations"
         Write-Sep
@@ -624,15 +636,66 @@ function Menu-Taskbar {
         Write-Host ""
         $c = Read-Host "  Select"
         switch ($c) {
-            "1" { Taskbar-Left }               "2" { Taskbar-Center }
-            "3" { Disable-TaskbarWidgets }     "4" { Enable-TaskbarWidgets }
-            "5" { Disable-TaskbarSearch }      "6" { Enable-TaskbarSearch }
-            "7" { Disable-TaskView }           "8" { Enable-TaskView }
-            "9" { Disable-CopilotButton }      "10" { Enable-CopilotButton }
-            "11" { Disable-ChatButton }         "12" { Enable-ChatButton }
+            "1" { Taskbar-Left }              "2" { Taskbar-Center }
+            "3" { Disable-TaskbarWidgets }    "4" { Enable-TaskbarWidgets }
+            "5" { Disable-TaskbarSearch }     "6" { Enable-TaskbarSearch }
+            "7" { Disable-TaskView }          "8" { Enable-TaskView }
+            "9" { Disable-CopilotButton }     "10" { Enable-CopilotButton }
+            "11" { Disable-ChatButton }        "12" { Enable-ChatButton }
             "13" { StartMenu-MorePins }
             "14" { StartMenu-Default }
             "15" { Disable-StartRecommendations }
+            "0" { Clear-Host; return }
+        }
+        if ($c -ne "0") { Pause-Menu }
+    }
+}
+
+function Menu-SystemTray {
+    while ($true) {
+        Title
+        Write-Host "  SYSTEM TRAY" -ForegroundColor Cyan
+        Write-Sep
+        Write-Host "  1  Apply Clean Tray Preset  " -NoNewline; Write-Host "(clock & date only)" -ForegroundColor Magenta
+        Write-Host "  2  Restore Tray Defaults"
+        Write-Sep
+        Write-Host "  [ Input Indicator / Language Selector ]"
+        Write-Host "  3  Hide Input Indicator        4  Show Input Indicator"
+        Write-Host ""
+        Write-Host "  [ Action Center / Notification Bell ]"
+        Write-Host "  5  Hide Action Center          6  Show Action Center"
+        Write-Host ""
+        Write-Host "  [ Hidden Icons Overflow Arrow  ^  ]"
+        Write-Host "  7  Hide Overflow Arrow         8  Show Overflow Arrow"
+        Write-Host "     (removes ^ chevron; all icons shown flat)"
+        Write-Host ""
+        Write-Host "  [ Meet Now ]"
+        Write-Host "  9  Hide Meet Now              10  Show Meet Now"
+        if ($script:isAdmin) {
+            Write-Host ""
+            Write-Host "  [ Windows Security Icon ]  [Admin]"
+            Write-Host "  11 Hide Security Icon        12  Show Security Icon"
+        }
+        else {
+            Write-Host ""
+            Write-Host "  Options 11-12 (Security icon) require admin." -ForegroundColor DarkGray
+        }
+        Write-Sep
+        Write-Host "  [!] Volume / Network / Battery icons are system-managed." -ForegroundColor DarkGray
+        Write-Host "      Hide via: Settings > Personalisation > Taskbar" -ForegroundColor DarkGray
+        Write-Host "               > Other system tray icons" -ForegroundColor DarkGray
+        Write-Sep
+        Write-Host "  0  Back"
+        Write-Host ""
+        $c = Read-Host "  Select"
+        switch ($c) {
+            "1" { Apply-CleanTray }
+            "2" { Restore-TrayDefaults }
+            "3" { Hide-InputIndicator }        "4" { Show-InputIndicator }
+            "5" { Hide-ActionCenter }          "6" { Show-ActionCenter }
+            "7" { Hide-TrayOverflowArrow }     "8" { Show-TrayOverflowArrow }
+            "9" { Hide-MeetNow }               "10" { Show-MeetNow }
+            "11" { Hide-SecurityTrayIcon }      "12" { Show-SecurityTrayIcon }
             "0" { Clear-Host; return }
         }
         if ($c -ne "0") { Pause-Menu }
@@ -653,10 +716,10 @@ function Menu-Explorer {
         Write-Host ""
         $c = Read-Host "  Select"
         switch ($c) {
-            "1" { Show-FileExtensions }    "2" { Hide-FileExtensions }
-            "3" { Show-HiddenFiles }       "4" { Hide-HiddenFiles }
-            "5" { Show-FullPathTitleBar }  "6" { Hide-FullPathTitleBar }
-            "7" { Show-SecondsInClock }    "8" { Hide-SecondsInClock }
+            "1" { Show-FileExtensions }   "2" { Hide-FileExtensions }
+            "3" { Show-HiddenFiles }      "4" { Hide-HiddenFiles }
+            "5" { Show-FullPathTitleBar } "6" { Hide-FullPathTitleBar }
+            "7" { Show-SecondsInClock }   "8" { Hide-SecondsInClock }
             "0" { Clear-Host; return }
         }
         if ($c -ne "0") { Pause-Menu }
@@ -729,17 +792,18 @@ function Menu-Privacy {
             Write-Host "  7  Disable Activity History"
             Write-Host "  8  Disable Location Tracking"
             Write-Host "  9  Disable Cortana"
-        } else {
+        }
+        else {
             Write-Host ""
             Write-Host "  Options 6-9 require admin." -ForegroundColor DarkGray
-            Write-Host "  Use option 11 on the main menu to relaunch as Administrator." -ForegroundColor DarkGray
+            Write-Host "  Use option 13 on the main menu to relaunch as Administrator." -ForegroundColor DarkGray
         }
         Write-Sep
         Write-Host "  0  Back"
         Write-Host ""
         $c = Read-Host "  Select"
         switch ($c) {
-            "1" { Disable-BingSearch }        "2" { Enable-BingSearch }
+            "1" { Disable-BingSearch }       "2" { Enable-BingSearch }
             "3" { Disable-AdvertisingID }
             "4" { Disable-AppSuggestions }
             "5" { Disable-LockScreenAds }
@@ -756,5 +820,13 @@ function Menu-Privacy {
 #*###########################
 #! Entry
 #*###########################
+
+# Auto-save to TEMP when launched via irm | iex (no script path on disk)
+if (-not $MyInvocation.ScriptName) {
+    try {
+        Invoke-RestMethod $script:sourceUrl -OutFile $script:tempScript -ErrorAction SilentlyContinue
+    }
+    catch {}
+}
 
 MainMenu

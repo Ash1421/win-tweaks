@@ -34,16 +34,36 @@
 
 ## 🚀 Installation & Usage
 
-### ⚡ One-liner (PowerShell / pwsh)
-
+### ⚡ One-liner (PowerShell / pwsh) (Recommended)
+ This is the recommended way to run the script!
+ Please use a supported shell.
 ```powershell
 irm wt.ash1421.com | iex
 ```
+
+### 💫 Raw One-liner
+  Please use this the if the domain doesn't work.
+  The same shell support applys for using the invoke request's and execution.
+  if you would like to use command prompt or older powershell versions please read the other way's to run the script.
+```powershell
+irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks.ps1 | iex
+```
+
+<details>
+<summary><h3>🔥  Other ways to run the script!</h3></summary>
+
+
 
 ### ⚡ One-liner (Command Prompt)
 
 ```cmd
 powershell -c "irm wt.ash1421.com | iex"
+```
+
+### 🌐 Raw One-liner (Command Prompt)
+
+```cmd
+powershell -c "irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks.ps1 | iex"
 ```
 
 ### 💾 Download to Temp & Run
@@ -74,6 +94,7 @@ irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks.
 ```powershell
 powershell -ExecutionPolicy Bypass -File tweaks.ps1
 ```
+</details>
 
 ---
 

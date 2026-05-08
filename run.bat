@@ -2,7 +2,7 @@
 title Ash's Windows Tweaks Manager
 
 :: Try to run as Administrator.
-:: If elevation is not available (e.g. school), falls back to running as current user.
+:: If elevation is not available (e.g. school, workspace/work), falls back to running as current user.
 net session >nul 2>&1
 if %errorLevel% == 0 (
     :: Already admin — run directly

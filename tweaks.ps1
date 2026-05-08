@@ -1,11 +1,14 @@
 #*----------------------------------------------------
 #! Ash's Windows Tweaks Manager
-#* Run:            irm wt.ash1421.com | iex
-#* Download & Run: irm wt.ash1421.com -OutFile "$env:TEMP\tweaks.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\tweaks.ps1"
-#* Raw Download & Run: irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks.ps1 -OutFile "$env:TEMP\tweaks.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\tweaks.ps1"
+#*----------------------------------------------------
+#* Run:                 irm wt.ash1421.com | iex
+#* Raw Run:             irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks.ps1 | iex
+#*----------------------------------------------------
+#* Download & Run:      irm wt.ash1421.com -OutFile "$env:TEMP\tweaks.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\tweaks.ps1"
+#* Raw Download & Run:  irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks.ps1 -OutFile "$env:TEMP\tweaks.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\tweaks.ps1"
 #*----------------------------------------------------
 
-$script:version = "V3.3.0"
+$script:version = "V3.4.0"
 $script:backup = "$env:TEMP\registry_backup.reg"
 $script:tempScript = "$env:TEMP\tweaks.ps1"
 $script:sourceUrl = "https://wt.ash1421.com"
@@ -499,7 +502,6 @@ function Apply-AshsProfile {
     Hide-InputIndicator
     Hide-ActionCenter
     Hide-MeetNow
-    # Hide-TrayOverflowArrow
     Disable-CopilotButton
     Disable-ChatButton
     if ($script:isAdmin) {
@@ -511,7 +513,6 @@ function Apply-AshsProfile {
 
     Write-Info "File Explorer..."
     Show-FileExtensions
-    # Show-HiddenFiles
     Show-FullPathTitleBar
     Show-SecondsInClock
 
@@ -520,7 +521,6 @@ function Apply-AshsProfile {
     Enable-WindowDraggingContent
     Disable-StartupDelay
     Faster-Menu
-    # Set-BestPerformanceVisuals
     Disable-GameDVR
 
     Write-Info "Privacy..."

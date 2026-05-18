@@ -16,6 +16,7 @@
 ## 💜 Donations & Funding
 
 #### Donations and or support are appreciated very much!
+
 #### If you would like to show love to the creator of this project, please consider donating on Ko-fi.
 
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Donate-FF69B4?style=for-the-badge&logo=kofi&logoColor=white&labelColor=1c1917)](https://kofi.ash1421.com)
@@ -35,24 +36,26 @@
 ## 🚀 Installation & Usage
 
 ### ⚡ One-liner (PowerShell / pwsh) (Recommended)
- This is the recommended way to run the script!
- Please use a supported shell.
+
+This is the recommended way to run the script!
+Please use a supported shell.
+
 ```powershell
 irm wt.ash1421.com | iex
 ```
 
 ### 💫 Raw One-liner
-  Please use this the if the domain doesn't work.
-  The same shell support applys for using the invoke request's and execution.
-  if you would like to use command prompt or older powershell versions please read the other way's to run the script.
+
+Please use this the if the domain doesn't work.
+The same shell support applys for using the invoke request's and execution.
+if you would like to use command prompt or older powershell versions please read the other way's to run the script.
+
 ```powershell
 irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks.ps1 | iex
 ```
 
 <details>
 <summary><h3>🔥  Other ways to run the script!</h3></summary>
-
-
 
 ### ⚡ One-liner (Command Prompt)
 
@@ -93,6 +96,22 @@ irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tweaks.ps1
+```
+
+</details>
+
+<details>
+<summary><h3>📃 Fzf/Fancy version</h3></summary>
+The fzf version includes **interactive fuzzy search menus** for a modern TUI experience.
+ 
+#### ⚡ One-liner (PowerShell / pwsh)
+```powershell
+irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks_fzf.ps1 | iex
+```
+ 
+#### 💾 Download to Temp & Run
+```powershell
+irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks_fzf.ps1 -OutFile "$env:TEMP\tweaks_fzf.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\tweaks_fzf.ps1"
 ```
 </details>
 

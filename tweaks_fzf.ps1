@@ -6,7 +6,7 @@
 #* Raw Download & Run:  irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks_fzf.ps1 -OutFile "$env:TEMP\tweaks_fzf.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\tweaks_fzf.ps1"
 #*----------------------------------------------------
 
-$script:version = "V4.0.0"
+$script:version = "V4.2.1"
 $script:debug = $false  # Set to $true to enable debug output
 $script:backup = "$env:TEMP\registry_backup_$(Get-Date -Format 'yyyyMMdd_HHmmss').reg"
 $script:isAdmin = ([Security.Principal.WindowsPrincipal]::new(
@@ -160,7 +160,7 @@ function Show-Header {
     Write-Host "  |  WINDOWS TWEAKS MANAGER PRO v4.0.0   |" -ForegroundColor Cyan
     Write-Host "  +======================================+" -ForegroundColor Cyan
     if (-not $script:runAsAdmin) {
-        Write-Host "  [USER MODE] Some features unavailable" -ForegroundColor Yellow
+        Write-Host "  [USER MODE] Standard features available" -ForegroundColor Yellow
     } else {
         Write-Host "  [ADMIN MODE] All features available" -ForegroundColor Green
     }

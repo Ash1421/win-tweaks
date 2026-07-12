@@ -8,7 +8,7 @@
 #* Raw Download & Run:  irm https://raw.githubusercontent.com/Ash1421/win-tweaks/refs/heads/main/tweaks.ps1 -OutFile "$env:TEMP\tweaks.ps1"; powershell -ExecutionPolicy Bypass -File "$env:TEMP\tweaks.ps1"
 #*----------------------------------------------------
 
-$script:version = "V3.4.0"
+$script:version = "V4.2.1"
 $script:backup = "$env:TEMP\registry_backup.reg"
 $script:tempScript = "$env:TEMP\tweaks.ps1"
 $script:sourceUrl = "https://wt.ash1421.com"
@@ -35,7 +35,7 @@ function Pause-Menu {
 function Title {
     Clear-Host
     $tag = if ($script:isAdmin) { "[Admin]" } else { "[User - some tweaks require admin]" }
-    $color = if ($script:isAdmin) { "Green" } else { "Yellow" }
+    $color = if ($script:isAdmin) { "Darkmagenta" } else { "Yellow" }
     Write-Host "  =====================================" -ForegroundColor Magenta
     Write-Host "   ASH'S WINDOWS TWEAKS  $($script:version)" -ForegroundColor White
     Write-Host "   $tag" -ForegroundColor $color
@@ -824,9 +824,11 @@ function Menu-Privacy {
 # Auto-save to TEMP when launched via irm | iex (no script path on disk)
 if (-not $MyInvocation.ScriptName) {
     try {
-        Invoke-RestMethod $script:sourceUrl -OutFile $script:tempScript -ErrorAction SilentlyContinue
+        Invoke-RestMethod $script:sourceUrl -OutFile $script:tempScript -ErrorAction Stop
     }
-    catch {}
+    catch {
+        Write-Warning "Failed to save script to TEMP: $($_.Exception.Message)"
+    }
 }
 
 MainMenu
